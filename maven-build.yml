@@ -1,0 +1,59 @@
+stages:
+  - "auto-maven"
+  - "install-internal-dependecy"
+  - "profile-clean-install"
+  - "POM.xml-path-build"
+
+Maven-1:
+  stage: "auto-maven"
+  tags:
+    - "shell"
+  before_script:
+      - echo "test"
+  script:
+      - mvn clean install
+      # It will directly install the dependency from local .m2 repo or from maven central and build the code.
+  artifacts:
+    path:
+      - "./target"
+
+Maven-2:
+  stage: "install-internal-dependecy"
+  tags:
+    - "shell"
+  before_script:
+      - echo "test"
+  script:
+      - mvn clean install
+      # It will build the internal JARs and save it in to the local .m2.
+  artifacts:
+    path:
+      - "./target"
+
+Maven-3:
+  stage: "profile-clean-install"
+  tags:
+    - "shell"
+  before_script:
+      - echo "test"
+  script:
+      - mvn clean install
+      # It will use different profile for building the code of maven.
+  artifacts:
+    path:
+      - "./target"
+
+Maven-4:
+  stage: "POM.xml-path-build"
+  tags:
+    - "shell"
+  before_script:
+      - echo "test"
+  script:
+      - mvn clean install
+      # It will build the code with the specific configuration of POM, If the project has multiple pom for multiple envs.
+  artifacts:
+    path:
+      - "./target"
+
+
