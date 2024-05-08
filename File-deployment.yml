@@ -1,0 +1,48 @@
+stages:
+  - "file-deployment"
+  - "start-server"
+  - "stop-server"
+  - "POM.xml-path-build"
+variable:
+  source-path: "./target"
+  destination-path: "/etc/dict"
+  bin-path: "/etc/service/bin"
+
+copy-file:
+  stage: "file-deployment"
+  tags:
+    - "shell"
+  before_script:
+      - |
+        if (-f $destination-path) then;
+          echo "file is present"
+        else
+          echo "file is not present"
+        fi
+  script:
+      - rm -rf ${destination-path}/*
+      - cp -r $source-path/* ${destination-path}
+  after-script:
+      - ls -lrth $destination-path/
+
+stop:
+  stage: "stop-server"
+  tags:
+    - "shell"
+  before_script:
+      - echo "test"
+  script:
+      - $bin-path/shutdown.sh 
+      - systemctl service status 
+  when: manual
+
+start:
+  stage: "start-server"
+  tags:
+    - "shell"
+  before_script:
+      - echo "test"
+  script:
+      - $bin-path/startup.sh 
+      - systemctl service status 
+  when: manual
