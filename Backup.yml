@@ -21,7 +21,20 @@ variables:
   UCD_DEPLOY_JSON_PATH: "urbancode"
   Component_Name: "Sample-Gitlab-Integraion-UCD-REST_API"
 
-
+ backup-scribeDB:
+	stage: backup
+	tags:
+	  - shell
+	before_script:
+		- if [ -d "$DEPLOYMENT_DIR" ]; then echo "Deployment directory exists"; else echo "Deployment directory does not exist"; exit 1; fi
+	script:
+		- if [ ! -d "$BACKUP_DIR" ]; then mkdir -p "$BACKUP_DIR"; echo "Backup directory created"; else echo "Backup directory exists"; fi
+		- mkdir -p /tmp/deployment_backup
+		- cp -r "$DEPLOYMENT_DIR" /tmp/deployment_backup/
+		- tar -czvf "$BACKUP_DIR/deployment_backup_$(date +%Y%m%d_%H%M%S).tar.gz" -C /tmp deployment_backup
+		- rm -rf /tmp/deployment_backup
+		- find "$BACKUP_DIR" -type f -name "*.tar.gz" | sort | head -n -5 | xargs rm -f
+  
 Changeset:
     stage: Pre
     script:
