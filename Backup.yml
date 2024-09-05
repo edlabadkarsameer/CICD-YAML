@@ -21,6 +21,68 @@ variables:
   UCD_DEPLOY_JSON_PATH: "urbancode"
   Component_Name: "Sample-Gitlab-Integraion-UCD-REST_API"
 
+
+Changeset:
+    stage: Pre
+    script:
+        - mkdir -p Target
+        - echo $CI_COMMIT_TAG
+        # Modified files
+        - |
+            if [[ $CI_COMMIT_TAG == PROD_* ]];
+            then 
+             CI_PREVIOUS_COMMIT=$CI_PREVIOUS_COMMIT_PROD
+            fi      
+            if [[ $CI_COMMIT_TAG == DEV_* ]];
+            then 
+             echo "Updating CI_PREVIOUS_COMMIT value for DEV"
+             CI_PREVIOUS_COMMIT=$CI_PREVIOUS_COMMIT_DEV
+            fi        
+        - echo $CI_PREVIOUS_COMMIT
+        - echo $CI_PREVIOUS_COMMIT_PROD
+        - echo $CI_PREVIOUS_COMMIT_DEV
+        - mfiles=$(git diff $CI_PREVIOUS_COMMIT $CI_COMMIT_SHA --name-only --diff-filter=d)
+        - echo $mfiles
+        - |
+            if [ ! -z "$mfiles" ];
+            then
+            echo "$mfiles" | while IFS= read -r line ; do echo $line; cp -rf --parents "$line" Target; done
+               #cp -rv --parents "$mfiles" Target;
+            else
+                echo "No modified files";
+            fi
+        # Deleted Files
+        - dfiles=$(git diff --diff-filter=D --name-only --summary $CI_PREVIOUS_COMMIT HEAD | grep delete || true) 
+        - if [ ! -z "$dfiles" ];
+            then
+                echo $dfiles >> Target/dfiles.txt;
+            else
+                echo "No deleted files";
+            fi
+        # If there are no modified files or deleted files
+        - if [[ -z $dfiles && -z $mfiles ]];
+            then
+                echo "NO changes found";
+                exit 1;
+            else
+                echo "Changes delivered to target folder";
+            fi
+ 
+CommitUpdate:
+    stage: Post
+    script:
+        - CI_PREVIOUS_COMMIT=$(git rev-parse HEAD)
+        - |
+            if [[ $CI_COMMIT_TAG == PROD_* ]];
+            then 
+             curl -k --request PUT --header "PRIVATE-TOKEN: $TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables/CI_PREVIOUS_COMMIT_PROD" --form "value=$CI_PREVIOUS_COMMIT"
+            fi    
+            if [[ $CI_COMMIT_TAG == DEV_* ]];
+            then
+             curl -k --request PUT --header "PRIVATE-TOKEN: $TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables/CI_PREVIOUS_COMMIT_DEV" --form "value=$CI_PREVIOUS_COMMIT"
+            fi   
+        #- 'curl -k --request PUT --header "PRIVATE-TOKEN: $TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables/CI_PREVIOUS_COMMIT" --form "value=$CI_PREVIOUS_COMMIT"'
+        #- 'curl -k --capath /home/ec2-user --cacert wild.in-2048.cer --request PUT --header "PRIVATE-TOKEN: $TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables/CI_PREVIOUS_COMMIT" --form "value=$CI_PREVIOUS_COMMIT"'
 build:
   stage: build
   tags:
