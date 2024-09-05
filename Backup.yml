@@ -1,0 +1,209 @@
+stages:
+  - changeset
+  - build
+  - test
+  - dast
+  - backup
+  - deploy
+  - rollback
+  - commitupdate
+  
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: DAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+
+variables:
+  GIT_STRATEGY: clone
+  DS_EXCLUDED_ANALYZERS: dependency_scanning
+  UCD_COMPONENT_BASE_PATH: "target"
+  UCD_DEPLOY_JSON_PATH: "urbancode"
+  Component_Name: "Sample-Gitlab-Integraion-UCD-REST_API"
+
+build:
+  stage: build
+  tags:
+    - shell-97
+  before_script:
+    - | 
+      export JAVA_HOME="/home/gitlab-runner/oracle-java/jdk-17.0.11"
+      export PATH=$JAVA_HOME\bin:$PATH
+    - java -version
+  script:
+    - mvn clean package
+
+    - $udclient_path -username $USER -password $PassWord --weburl $UCD_WEB_URL createVersion --component $Component_Name --name $CI_PIPELINE_IID --base $CI_PROJECT_DIR/target
+
+    - $udclient_path -username $USER -password $PassWord --weburl $UCD_WEB_URL addVersionFiles -component $Component_Name -version $CI_PIPELINE_IID --base $CI_PROJECT_DIR/target
+    
+  artifacts:
+    paths:
+      - ./target/*
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+    - if: $CI_COMMIT_BRANCH =~ /Prod/
+
+# SAST and secret detection jobs are included from templates
+semgrep-sast:
+  stage: test
+  tags:
+    - docker-97
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+    - if: $CI_COMMIT_BRANCH =~ /UAT/
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+    - if: $CI_COMMIT_BRANCH =~ /Prod/
+  dependencies:
+    - "build"
+
+secret_detection:
+  stage: test
+  tags:
+    - docker-97
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+    - if: $CI_COMMIT_BRANCH =~ /UAT/
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+    - if: $CI_COMMIT_BRANCH =~ /Prod/
+  dependencies:
+    - "sast"
+
+gemnasium-dependency_scanning:
+  stage: test
+  tags:
+    - docker-97
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+    - if: $CI_COMMIT_BRANCH =~ /UAT/
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+    - if: $CI_COMMIT_BRANCH =~ /Prod/
+  dependencies:
+    - "secret_detection"
+
+dast:
+  stage: dast
+  tags:
+    - docker-97
+  dast_configuration:
+    site_profile: "dast"
+    scanner_profile: "dast for vsm demo"
+
+backup_dev_environment:
+  stage: backup
+  tags:
+    - shell-97
+  script:
+    - echo "Backing up the project on dev environment..."
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+
+backup_QA_environment:
+  stage: backup
+  tags:
+    - shell-97
+  script:
+    - echo "Backing up the project on QA environment..."
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+
+
+backup_Production_environment:
+  stage: backup
+  tags:
+    - shell-97
+  script:
+    - echo "Backing up the project on Production environment..."
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /Prod/
+
+deploy_dev_environment:
+  stage: deploy
+  tags:
+    - shell-97
+  before_script:
+    - echo Hello Console
+  script:
+    - echo Hello Console
+  environment:
+    name: dev
+  dependencies:
+    - build
+  # needs:
+  #   - backup_dev_environment
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+  artifacts:
+    paths:
+      - ./target/*
+
+deploy_QA_environment:
+  stage: deploy
+  tags:
+    - shell-97
+  script:
+        -  echo "deplpoying"
+  needs:
+    - backup_QA_environment
+  environment:
+    name: QA
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+
+
+deploy_Production_environment:
+  stage: deploy
+  tags:
+    - shell-97
+  script:
+        -  echo "deplpoying"
+  needs:
+    - backup_Production_environment
+  environment:
+    name: production
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /Prod/
+
+rollback_dev_environment:
+  stage: rollback
+  tags:
+    - shell-97
+  script:
+    - echo "Rolling back the project on dev environment..."
+  needs:
+    - deploy_dev_environment
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /dev/
+  when: manual
+
+rollback_QA_environment:
+  stage: rollback
+  tags:
+    - shell-97
+  script:
+    - echo "Rolling back the project on QA environment..."
+  needs:
+    - deploy_QA_environment
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /QA/
+  when: manual
+
+
+rollback_Production_environment:
+  stage: rollback
+  tags:
+    - shell-97
+  script:
+    - echo "Rolling back the project on Production environment..."
+  needs:
+    - deploy_Production_environment
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /Prod/ 
+  when: manual  
