@@ -21,6 +21,40 @@ variables:
   UCD_DEPLOY_JSON_PATH: "urbancode"
   Component_Name: "Sample-Gitlab-Integraion-UCD-REST_API"
 
+
+deploy-scribeDB:
+  stage: deploy
+  tags:
+    - shell
+  variables:
+    APP_PORT: "8765"                        # Replace with your actual port number
+    APP_SCRIPT: "/path/to/application-script.sh"  # Replace with the actual application deployment script
+
+  before_script:
+    # Find and kill the process running on the specified port
+    - PID=$(ps aux | grep $APP_PORT | grep -v grep | awk '{print $2}')
+    - if [ -n "$PID" ]; then
+        echo "Killing process on port $APP_PORT with PID $PID.";
+        kill -9 $PID;
+      else
+        echo "No process found on port $APP_PORT.";
+      fi
+
+  script:
+    # Run the application deployment script
+    - echo "Running deployment script..."
+    - sh "$APP_SCRIPT"
+
+  after_script:
+    # Check if the new process is running
+    - PID=$(ps aux | grep $APP_PORT | grep -v grep | awk '{print $2}')
+    - if [ -n "$PID" ]; then
+        echo "Application is running with PID $PID on port $APP_PORT.";
+      else
+        echo "Application is not running on port $APP_PORT.";
+      fi
+
+
  backup-scribeDB:
 	stage: backup
 	tags:
